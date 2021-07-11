@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="imagetracerjs/imagetracer_v1.2.6.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: black;
+            color: white;
+            overflow: hidden;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #svg-container {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #svg-container svg {
+            height: 100%;
+            width: 100%;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #loading-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+        }
+    </style>
+    <title>Bad Apple!!.SVG</title>
+</head>
+<body>
+    <div class="overlay">
+        <span id="loading-text">Loading...</span>
+    </div>
+    <div id="svg-container"></div>
+    <script>
+        const TOTAL_FRAMES = 3211;
+
+        const SEQ_PATH = "bad_apple_mono_seq";
+        const FRAME_PREFIX = "frame";
+        const FRAME_EXT = "png";
+
+        const loadingText = document.getElementById("loading-text");
+
+        var svgSupport = !!document.createElementNS && !!document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGRect;
+
+        if (!svgSupport) {
+            loadingText.innerHTML = "Your browser doesn't support SVG.";
+        } else {
+            getSVG().then(pathData => {
+                document.getElementById('svg-container').innerHTML = pathData;
+                showNextFrame();
+            }).catch(err => {
+                console.error(err);
+            });
+        }
+
+        // Displays the next frame (paths) in the SVG recursively
+        function showNextFrame(frameNum=1) {
+            setTimeout(function() {
+                framePaths = document.getElementsByClassName(`frame-${frameNum}`);
+                lastFramePaths = [];
+
+                if (frameNum > 1) {
+                    lastFramePaths = document.getElementsByClassName(`frame-${frameNum-1}`);
+                }
+
+                for (const path of framePaths) {
+                    path.classList.remove("hidden");
+                }
+
+                for (const path of lastFramePaths) {
+                    path.classList.add("hidden");
+                }
+
+                if (frameNum < TOTAL_FRAMES) {
+                    showNextFrame(frameNum+1);
+                }
+            }, 67);
+        }
+
+        // Used to generate SVG paths out of image sequence
+        async function traceFrames() {
+            let pathData = "";
+            let svgStr = "";
+            let options = {...ImageTracer.optionpresets['default'], ...ImageTracer.optionpresets['posterized2']};
+            for (let i = 1; i <= TOTAL_FRAMES; i++) {
+                numStr = String(i).padStart(5, '0');
+                console.log(`Processing frame ${numStr} ...`);
+                traceData = await traceFrame(numStr);
+
+                if (!svgStr) {
+                    var w = traceData.width, h = traceData.height;
+                    svgStr = `<svg viewBox="0 0 ${w} ${h}" version="1.1" xmlns="http://www.w3.org/2000/svg">`
+                }
+
+                for(var lcnt=0; lcnt < traceData.layers.length; lcnt++){
+                    for(var pcnt=0; pcnt < traceData.layers[lcnt].length; pcnt++){
+                        
+                        // Adding SVG <path> string
+                        if( !traceData.layers[lcnt][pcnt].isholepath ){
+                            pathTagStr = ImageTracer.svgpathstring( traceData, lcnt, pcnt, options );
+                            pathTag = new DOMParser().parseFromString(pathTagStr, "text/xml");
+                            pathTag.activeElement.setAttribute("class", `frame frame-${i} hidden`);
+                            svgStr += pathTag.activeElement.outerHTML;
+                        }
+                            
+                    }// End of paths loop
+                }
+                //pathData += `${svgStr}\n\n`;
+            }
+            svgStr += "</svg>";
+            return svgStr;
+        }
+
+        // Gets pre-generated SVG file
+        async function getSVG() {
+            let {e, xhttp} = await getRequest("bad_apple.svg");
+            return xhttp.responseText;
+        }
+
+        // Generates SVG trace data from the frame number
+        function traceFrame(num) {
+            return new Promise((resolve, reject) => {
+                let framePath = getFramePath(num);
+                console.log(`Tracing: ${framePath}`);
+                ImageTracer.imageToTracedata(framePath, traceData => {
+                    console.log(`Traced frame ${num}`);
+                    //resolve(JSON.stringify(traceData));
+                    resolve(traceData);
+                });
+            });
+        }
+
+        // Returns path to frame image
+        function getFramePath(num) {
+            return `${SEQ_PATH}/${FRAME_PREFIX}${num}.${FRAME_EXT}`;
+        }
+
+        // Sends a simple get request to url and shows progress
+        function getRequest(url) {
+            return new Promise((resolve, reject) => {
+                var xhttp = new XMLHttpRequest();
+                xhttp.addEventListener("load", function(event) {
+                    loadingText.innerHTML = "";
+                    resolve({event, xhttp});
+                });
+                xhttp.addEventListener("error", function(event) {
+                    reject(event);
+                });
+                xhttp.addEventListener("progress", function(event) {
+                    let totalLen = event.lengthComputable ? event.total : 1024 * 1024 * 50;
+                    let percent = 100 * (event.loaded / totalLen);
+                    if (!event.lengthComputable && percent > 99) {
+                        percent = 99;
+                    }
+                    let percentInt = Math.round(percent);
+                    loadingText.innerHTML = `Loading ${percentInt}% ...`;
+                });
+                xhttp.open("GET", url, true);
+                xhttp.send();
+            });
+        }
+    </script>
+</body>
+</html>
