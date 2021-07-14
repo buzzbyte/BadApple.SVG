@@ -2,7 +2,7 @@
 
 Bad Apple playing in SVG format in real time right in the browser!
 
-(**Try it!**)[https://buzzbyte.github.io/BadApple.SVG]
+[**Try it here!**](https://buzzbyte.github.io/BadApple.SVG)
 
 ## How I did it
 
