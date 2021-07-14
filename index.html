@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="imagetracerjs/imagetracer_v1.2.6.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -13,13 +12,9 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: black;
-            color: white;
+            background: white;
+            color: black;
             overflow: hidden;
-        }
-
-        .hidden {
-            display: none;
         }
 
         #svg-container {
@@ -32,6 +27,11 @@
             width: 100%;
         }
 
+        #svg-container svg path {
+            fill: black;
+            stroke: none;
+        }
+
         .overlay {
             position: fixed;
             top: 0;
@@ -42,10 +42,21 @@
             text-align: center;
         }
 
+        .overlay .controls {
+            margin: 10px;
+            background-color: #ffffff75;
+            border-radius: 10px;
+            width: min-content;
+        }
+
+        .overlay .controls .control {
+            padding: 5px;
+        }
+
         #loading-text {
-            position: absolute;
+            position: relative;
             top: 50%;
-            left: 50%;
+            font-size: large;
         }
     </style>
     <title>Bad Apple!!.SVG</title>
@@ -53,115 +64,152 @@
 <body>
     <div class="overlay">
         <span id="loading-text">Loading...</span>
+        <div class="controls">
+            <div class="control">
+                <label for="">Color 1</label>
+                <input type="color" name="color1" id="color1" value="#000000">
+            </div>
+            <div class="control">
+                <label for="">Color 2</label>
+                <input type="color" name="color2" id="color2" value="#ffffff">
+            </div>
+        </div>
     </div>
-    <div id="svg-container"></div>
+    <div id="svg-container">
+        <svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+             viewBox="0 0 480 360" width="480" height="360"
+             preserveAspectRatio="xMidYMid meet">
+        </svg>
+    </div>
+    <audio id="song" src="bad-apple.wav" preload="auto"></audio>
     <script>
-        const TOTAL_FRAMES = 3211;
+        window.addEventListener("load", function() {
+            const audioContext = new AudioContext();
+            const audio = document.getElementById('song');
+            const loadingText = document.getElementById("loading-text");
 
-        const SEQ_PATH = "bad_apple_mono_seq";
-        const FRAME_PREFIX = "frame";
-        const FRAME_EXT = "png";
+            var svgSupport = !!document.createElementNS && !!document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGRect;
 
-        const loadingText = document.getElementById("loading-text");
+            if (!svgSupport) {
+                loadingText.innerHTML = "Your browser doesn't support SVG.";
+            } else {
+                let svgElem = document.querySelector("#svg-container svg");
+                let pathElem = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathElem.setAttribute('transform', "translate(0.000000,360.000000) scale(0.100000,-0.100000)")
+                svgElem.appendChild(pathElem);
 
-        var svgSupport = !!document.createElementNS && !!document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGRect;
+                setupControls(pathElem);
 
-        if (!svgSupport) {
-            loadingText.innerHTML = "Your browser doesn't support SVG.";
-        } else {
-            getSVG().then(pathData => {
-                document.getElementById('svg-container').innerHTML = pathData;
-                showNextFrame();
-            }).catch(err => {
-                console.error(err);
-            });
-        }
-
-        // Displays the next frame (paths) in the SVG recursively
-        function showNextFrame(frameNum=1) {
-            setTimeout(function() {
-                framePaths = document.getElementsByClassName(`frame-${frameNum}`);
-                lastFramePaths = [];
-
-                if (frameNum > 1) {
-                    lastFramePaths = document.getElementsByClassName(`frame-${frameNum-1}`);
-                }
-
-                for (const path of framePaths) {
-                    path.classList.remove("hidden");
-                }
-
-                for (const path of lastFramePaths) {
-                    path.classList.add("hidden");
-                }
-
-                if (frameNum < TOTAL_FRAMES) {
-                    showNextFrame(frameNum+1);
-                }
-            }, 67);
-        }
-
-        // Used to generate SVG paths out of image sequence
-        async function traceFrames() {
-            let pathData = "";
-            let svgStr = "";
-            let options = {...ImageTracer.optionpresets['default'], ...ImageTracer.optionpresets['posterized2']};
-            for (let i = 1; i <= TOTAL_FRAMES; i++) {
-                numStr = String(i).padStart(5, '0');
-                console.log(`Processing frame ${numStr} ...`);
-                traceData = await traceFrame(numStr);
-
-                if (!svgStr) {
-                    var w = traceData.width, h = traceData.height;
-                    svgStr = `<svg viewBox="0 0 ${w} ${h}" version="1.1" xmlns="http://www.w3.org/2000/svg">`
-                }
-
-                for(var lcnt=0; lcnt < traceData.layers.length; lcnt++){
-                    for(var pcnt=0; pcnt < traceData.layers[lcnt].length; pcnt++){
-                        
-                        // Adding SVG <path> string
-                        if( !traceData.layers[lcnt][pcnt].isholepath ){
-                            pathTagStr = ImageTracer.svgpathstring( traceData, lcnt, pcnt, options );
-                            pathTag = new DOMParser().parseFromString(pathTagStr, "text/xml");
-                            pathTag.activeElement.setAttribute("class", `frame frame-${i} hidden`);
-                            svgStr += pathTag.activeElement.outerHTML;
-                        }
-                            
-                    }// End of paths loop
-                }
-                //pathData += `${svgStr}\n\n`;
-            }
-            svgStr += "</svg>";
-            return svgStr;
-        }
-
-        // Gets pre-generated SVG file
-        async function getSVG() {
-            let {e, xhttp} = await getRequest("bad_apple.svg");
-            return xhttp.responseText;
-        }
-
-        // Generates SVG trace data from the frame number
-        function traceFrame(num) {
-            return new Promise((resolve, reject) => {
-                let framePath = getFramePath(num);
-                console.log(`Tracing: ${framePath}`);
-                ImageTracer.imageToTracedata(framePath, traceData => {
-                    console.log(`Traced frame ${num}`);
-                    //resolve(JSON.stringify(traceData));
-                    resolve(traceData);
+                getPathData().then(pathData => {
+                    let autoplayAttempt = audio.play();
+                    if (autoplayAttempt) {
+                        autoplayAttempt.then(() => {
+                            playAnim(pathData, pathElem);
+                        }).catch(err => {
+                            // autoplay probably failed...
+                            manualPlay(pathData, pathElem);
+                        });
+                    } else {
+                        // browser's doing dumb shit
+                        manualPlay(pathData, pathElem);
+                    }
                 });
+            }
+        });
+
+        // Sets up the color controls
+        function setupControls(pathElem) {
+            let color1 = document.getElementById('color1');
+            let color2 = document.getElementById('color2');
+
+            color1.addEventListener("input", function(event) {
+                if (pathElem) {
+                    pathElem.style.fill = event.target.value;
+                }
             });
+
+            color2.addEventListener("input", function(event) {
+                let invertedColor = 0xFFFFFF ^ parseInt(event.target.value.substring(1), 16)
+                invertedColor = ("000000" + invertedColor.toString(16)).slice(-6);
+
+                document.body.style.backgroundColor = event.target.value;
+                document.body.style.color = "#"+ invertedColor;
+            });
+
+            color1.select();
+            color2.select();
         }
 
-        // Returns path to frame image
-        function getFramePath(num) {
-            return `${SEQ_PATH}/${FRAME_PREFIX}${num}.${FRAME_EXT}`;
+        // For when autoplay is blocked
+        function manualPlay(pathData, pathElem) {
+            const loadingText = document.getElementById("loading-text"),
+                  audio       = document.getElementById("song"),
+                  overlay     = document.getElementsByClassName("overlay")[0];
+            
+            overlay.addEventListener("click", function playClick(event) {
+                overlay.removeEventListener("click", playClick);
+                loadingText.innerHTML = "";
+                overlay.style.cursor = "auto";
+                audio.play()
+                playAnim(pathData, pathElem);
+            });
+            overlay.style.cursor = "pointer";
+            loadingText.innerHTML = "Click to Play";
+        }
+
+        // The main animation controller
+        function playAnim(pathData, pathElem) {
+            const audio = document.getElementById('song');
+            let fps = 15,
+                fpsInterval = 1000 / fps,
+                frameInterval = (audio.duration / pathData.length) * 1000,
+                then = audio.currentTime * 1000,
+                start = then,
+                frameIndex = 0;
+            
+            // The animation loop
+            function loopAnim() {
+                requestAnimationFrame(loopAnim);
+                now = audio.currentTime * 1000;
+                elapsed = now - then;
+
+                audioSynched = Math.round(now / fpsInterval) + 1;
+
+                if (frameIndex > pathData.length) {
+                    frameIndex = pathData.length - 1;
+                    cancelAnimationFrame(loopAnim);
+                }
+                
+                if (elapsed > fpsInterval) {
+                    then = now - (elapsed % fpsInterval);
+                    frameData = pathData[frameIndex];
+                    pathElem.setAttribute('d', frameData);
+
+                    // Sync playback with audio if frameIndex is at least
+                    // 5 frames behind
+                    if (audioSynched > frameIndex + 5) {
+                        console.log("Syncing with audio")
+                        frameIndex = audioSynched;
+                    } else {
+                        console.log("Playing smoothly")
+                        frameIndex += 1;
+                    }
+                }
+            }
+
+            loopAnim();
+        }
+
+        // Gets the list of path data frames from the JSON file
+        async function getPathData() {
+            let {e, xhttp} = await getRequest("pathdata.json");
+            return JSON.parse(xhttp.responseText);
         }
 
         // Sends a simple get request to url and shows progress
         function getRequest(url) {
             return new Promise((resolve, reject) => {
+                var loadingText = document.getElementById("loading-text");
                 var xhttp = new XMLHttpRequest();
                 xhttp.addEventListener("load", function(event) {
                     loadingText.innerHTML = "";

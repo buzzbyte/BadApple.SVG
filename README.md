@@ -1,21 +1,22 @@
 # Bad Apple!!.SVG
 
-Bad Apple playing in SVG format right in the browser!
+Bad Apple playing in SVG format in real time right in the browser!
 
-## How it works
+(**Try it!**)[https://buzzbyte.github.io/BadApple.SVG]
+
+## How I did it
 
 I simply downloaded the original video, encoded it to 15 FPS and converted it
-to a monochrome image sequence with FFMPEG, then used
-[imagetracerjs](jankovicsandras/imagetracerjs) to convert each frame to SVG
-paths, added some CSS classes to each path nessesary for animating it, and
-wrapped it in SVG format (the code I used is still in the repo).
-I let it run (took a few hours to trace all the frames) then saved the output
-to an SVG file.
+to a monochrome bitmap image sequence with FFMPEG, then used
+[Potrace](http://potrace.sourceforge.net) to convert the frames to single-path
+SVG files. I then wrote a script (`process_svgs.py`) to extract the path data
+from each SVG file, append it to a list, and save it as a JSON file for
+Javascript to handle.
 
-The animation is done by simply showing the path of one frame and hiding the
-rest. I iterated through them using a `setTimeout` set for 67 ms
-(1/15 * 1000 = 66.6) for each frame.
+The animation is done by using a `requestAnimationFrame` loop iterating through
+each frame and updating the SVG with the path data for each frame at 15 FPS.
+The loop uses the audio's timing to ensure it syncs properly.
 
-Currently, it doesn't play audio since it doesn't play all the frames properly
-(it skips some frames due to how I encoded it initially), but I can try to fix
-that in the future.
+## but why tho?
+
+Why not?
